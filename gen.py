@@ -67,6 +67,10 @@ class Options(object):
                            default=False,
                            action="store_true",
                            help="Use dynamic imports everywhere.")
+    self.parser.add_option("--wbn-base-url",
+                           default="http://localhost:8000/out/",
+                           help="Specify the serving URL of the benchmark. "
+                           "Used as the base URL of the WebBundle output.")
 
   def parse_options(self):
     (self.options, args) = self.parser.parse_args()
@@ -314,7 +318,12 @@ class Benchmark(object):
     subprocess.check_call(
         f"npx rollup '{ module_path}' --format=esm --file='{bundle_path}' --name=A",
         shell=True)
-    # TODO: support webbundle
+    base_url = self.options.wbn_base_url
+    wbn_path = out_path / 'bundled.wbn'
+    subprocess.check_call(
+        f"npx wbn --dir='{out_path}' --baseURL={base_url} --primaryURL={base_url}A.mjs --output='{wbn_path}'",
+        shell=True)
+
 
   @step("Exporting html")
   def export_html(self, out_path):
@@ -327,6 +336,7 @@ class Benchmark(object):
           self.export_benchmark(out_path, 'preload', preload_count=count))
     if not self.options.dynamic_imports:
       benchmarks.append(self.export_bundled(out_path))
+      benchmarks.append(self.export_bundled_wbn(out_path))
     self.export_index(out_path, benchmarks)
 
   @step("Exporting bundled")
@@ -338,6 +348,17 @@ class Benchmark(object):
                info=self.output_info(),
                scripts="",
                module='./bundled.mjs')))
+    return path
+
+  @step("Exporting bundled with webbundle")
+  def export_bundled_wbn(self, out_path):
+    path = out_path / 'webbundle.html'
+    with open(path, 'w') as f:
+      f.write(self.benchmark_template().substitute(
+          dict(headers=f'  <link rel="webbundle" href="bundled.wbn" scopes="{self.options.wbn_base_url}">',
+               info=self.output_info(),
+               scripts="",
+               module='./A.mjs')))
     return path
 
   def export_benchmark(self,
