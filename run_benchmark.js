@@ -13,13 +13,13 @@ const launchOptions = {
     executablePath: options.browser,
 };
 
-async function run(browser) {
+async function run(browser, url) {
     const page = await browser.newPage();
-    await page.goto('http://localhost:8000/out/bundled.html', { waitUntil: 'networkidle0' });
+    await page.goto(url, { waitUntil: 'networkidle0' });
     const ele = await page.$("#log");
     const text = await page.evaluate(elm => elm.textContent, ele);
     const m = text.match(/loadModules duration: ([0-9.]+ms)/);
-    console.log(m[1]);
+    console.log(url + ': ' + m[1]);
 }
 
 async function main() {
@@ -29,7 +29,9 @@ async function main() {
         directory: '.'
     });
 
-    await run(browser);
+    await run(browser, 'http://localhost:8000/out_2/webbundle.html');
+    await run(browser, 'http://localhost:8000/out_3/webbundle.html');
+    await run(browser, 'http://localhost:8000/out_4/webbundle.html');
 
     browser.close();
     ws.server.close();

@@ -38,6 +38,10 @@ class Options(object):
 
   def setup_option_parser(self):
     self.parser = OptionParser("usage: %prog")
+    self.parser.add_option("-o",
+                           "--out",
+                           default="out",
+                           help='Specifies the output directory, default="out"')
     self.parser.add_option("-d",
                            "--depth",
                            type="int",
@@ -68,7 +72,7 @@ class Options(object):
                            action="store_true",
                            help="Use dynamic imports everywhere.")
     self.parser.add_option("--wbn-base-url",
-                           default="http://localhost:8000/out/",
+                           default="http://localhost:8000/",
                            help="Specify the serving URL of the benchmark. "
                            "Used as the base URL of the WebBundle output.")
 
@@ -321,7 +325,7 @@ class Benchmark(object):
     base_url = self.options.wbn_base_url
     wbn_path = out_path / 'bundled.wbn'
     subprocess.check_call(
-        f"npx wbn --dir='{out_path}' --baseURL={base_url} --primaryURL={base_url}A.mjs --output='{wbn_path}'",
+        f"npx wbn --dir='{out_path}' --baseURL={base_url}{out_path}/ --primaryURL={base_url}{module_path} --output='{wbn_path}'",
         shell=True)
 
 
@@ -353,9 +357,11 @@ class Benchmark(object):
   @step("Exporting bundled with webbundle")
   def export_bundled_wbn(self, out_path):
     path = out_path / 'webbundle.html'
+    scope = self.options.wbn_base_url + str(out_path)
     with open(path, 'w') as f:
+      # Define both scopes and scope attributes so that old PoC builds can understand
       f.write(self.benchmark_template().substitute(
-          dict(headers=f'  <link rel="webbundle" href="bundled.wbn" scopes="{self.options.wbn_base_url}">',
+          dict(headers=f'  <link rel="webbundle" href="bundled.wbn" scopes="{scope}" scope="{scope}">',
                info=self.output_info(),
                scripts="",
                module='./A.mjs')))
@@ -424,4 +430,4 @@ class Benchmark(object):
 if __name__ == "__main__":
   options = Options().options
   benchmark = Benchmark(options)
-  benchmark.export(Path('out'))
+  benchmark.export(Path(options.out))
