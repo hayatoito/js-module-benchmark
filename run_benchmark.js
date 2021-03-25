@@ -7,23 +7,30 @@ const puppeteer = require('puppeteer-core');
 
 const args = arg({
     // Types
-    '--browser': String,
+    '--browser': String,   // browser executable path
+    '--depth': Number,     // run only testcases with this depth (2-4)
+    '--filter': String,    // run only testcases with this name (prefetch-0|webbundle|bundled)
+    '--port': Number,      // http server port (default=8000)
     // Aliases
     '-b': '--browser',
+    '-d': '--depth',
+    '-f': '--filter',
 });
 
+if (!args['--browser'])
+    throw new Error('missing required argument: --browser');
 const launchOptions = {
     executablePath: args['--browser'],
     args: ['--enable-features=SubresourceWebBundles']
 };
 
-async function run(browser, url) {
+async function run(name, browser, url) {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle0' });
     const ele = await page.$("#log");
     const text = await page.evaluate(elm => elm.textContent, ele);
     const m = text.match(/loadModules duration: ([0-9.]+ms)/);
-    console.log(url + ': ' + m[1]);
+    console.log(name + ': ' + m[1]);
 }
 
 async function main() {
@@ -41,11 +48,18 @@ async function main() {
             }]
         });
     });
-    server.listen(8000);
+    const port = args['--port'] || 8000;
+    server.listen(port);
 
-    await run(browser, 'http://localhost:8000/out_2/webbundle.html');
-    await run(browser, 'http://localhost:8000/out_3/webbundle.html');
-    await run(browser, 'http://localhost:8000/out_4/webbundle.html');
+    for (let name of ['prefetch-0', 'webbundle', 'bundled']) {
+        if (args['--filter'] && args['--filter'] !== name)
+            continue;
+        for (let depth = 2; depth <= 4; depth++) {
+            if (args['--depth'] && args['--depth'] !== depth)
+                continue;
+            await run(`${name} depth=${depth}`, browser, `http://localhost:${port}/out_${depth}/${name}.html`);
+        }
+    }
 
     browser.close();
     server.close();
