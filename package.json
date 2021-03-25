@@ -2,10 +2,10 @@
   "name": "module-benchmark",
   "version": "1.0.0",
   "dependencies": {
-    "command-line-args": "^5.1.1",
-    "local-web-server": "^4.2.1",
+    "arg": "^5.0.0",
     "puppeteer-core": "^8.0.0",
     "rollup": "^2.35.1",
+    "serve": "^11.3.2",
     "wbn": "0.0.5"
   }
 }

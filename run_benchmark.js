@@ -1,16 +1,20 @@
 // Usage: node run_benchmark.js --browser ~/chromium/src/out/Release/chrome
 
-const commandLineArgs = require('command-line-args');
-const localWebServer = require('local-web-server');
+const arg = require('arg');
+const handler = require('serve-handler');
+const http = require('http');
 const puppeteer = require('puppeteer-core');
 
-const optionDefinitions = [
-    { name: 'browser', alias: 'b', type: String },
-];
-const options = commandLineArgs(optionDefinitions)
+const args = arg({
+    // Types
+    '--browser': String,
+    // Aliases
+    '-b': '--browser',
+});
 
 const launchOptions = {
-    executablePath: options.browser,
+    executablePath: args['--browser'],
+    args: ['--enable-features=SubresourceWebBundles']
 };
 
 async function run(browser, url) {
@@ -24,17 +28,27 @@ async function run(browser, url) {
 
 async function main() {
     const browser = await puppeteer.launch(launchOptions);
-    const ws = localWebServer.create({
-        port: 8000,
-        directory: '.'
+    const server = http.createServer((request, response) => {
+        return handler(request, response, {
+            public: '.',
+            cleanUrls: false,
+            headers: [{
+                source: '**/*.wbn',
+                headers: [
+                    { key: 'Content-Type', value: 'application/webbundle' },
+                    { key: 'X-Content-Type-Options', value: 'nosniff' },
+                ]
+            }]
+        });
     });
+    server.listen(8000);
 
     await run(browser, 'http://localhost:8000/out_2/webbundle.html');
     await run(browser, 'http://localhost:8000/out_3/webbundle.html');
     await run(browser, 'http://localhost:8000/out_4/webbundle.html');
 
     browser.close();
-    ws.server.close();
+    server.close();
 }
 
 main();
