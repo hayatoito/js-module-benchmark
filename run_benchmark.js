@@ -1,8 +1,10 @@
 // Usage: node run_benchmark.js --browser ~/chromium/src/out/Release/chrome
 
 const arg = require('arg');
+const fs = require('fs');
 const handler = require('serve-handler');
 const http = require('http');
+const http2 = require('http2');
 const puppeteer = require('puppeteer-core');
 
 const args = arg({
@@ -10,19 +12,38 @@ const args = arg({
     '--browser': String,   // browser executable path
     '--depth': Number,     // run only testcases with this depth (2-4)
     '--filter': String,    // run only testcases with this name (prefetch-0|webbundle|bundled)
-    '--port': Number,      // http server port (default=8000)
+    '--port': Number,      // http(s) server port (default=8000)
+    '--http2': Boolean,    // use http2 local server
+    '--certfile': String,  // certificate file (default="cert.pem")
+    '--keyfile': String,   // private key file (default="key.pem")
     // Aliases
     '-b': '--browser',
     '-d': '--depth',
     '-f': '--filter',
 });
 
-if (!args['--browser'])
+if (!args['--browser']) {
     throw new Error('missing required argument: --browser');
+}
 const launchOptions = {
     executablePath: args['--browser'],
     args: ['--enable-features=SubresourceWebBundles']
 };
+if (args['--http2']) {
+    launchOptions.ignoreHTTPSErrors = true;
+}
+
+function createServer(handler) {
+    if (args['--http2']) {
+        const options = {
+            key: fs.readFileSync(args['--keyfile'] || 'key.pem'),
+            cert: fs.readFileSync(args['--certfile'] || 'cert.pem')
+        };
+        return http2.createSecureServer(options, handler);
+    } else {
+        return http.createServer(handler);
+    }
+}
 
 async function run(name, browser, url) {
     const page = await browser.newPage();
@@ -35,7 +56,7 @@ async function run(name, browser, url) {
 
 async function main() {
     const browser = await puppeteer.launch(launchOptions);
-    const server = http.createServer((request, response) => {
+    const server = createServer((request, response) => {
         return handler(request, response, {
             public: '.',
             cleanUrls: false,
@@ -48,6 +69,7 @@ async function main() {
             }]
         });
     });
+    const scheme = args['--http2'] ? 'https' : 'http';
     const port = args['--port'] || 8000;
     server.listen(port);
 
@@ -57,7 +79,7 @@ async function main() {
         for (let depth = 2; depth <= 4; depth++) {
             if (args['--depth'] && args['--depth'] !== depth)
                 continue;
-            await run(`${name} depth=${depth}`, browser, `http://localhost:${port}/out_${depth}/${name}.html`);
+            await run(`${name} depth=${depth}`, browser, `${scheme}://localhost:${port}/out_${depth}/${name}.html`);
         }
     }
 
