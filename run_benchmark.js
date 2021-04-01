@@ -6,6 +6,7 @@ const handler = require('serve-handler');
 const http = require('http');
 const http2 = require('http2');
 const puppeteer = require('puppeteer-core');
+const readline = require('readline');
 
 const args = arg({
     // Types
@@ -22,15 +23,18 @@ const args = arg({
     '-f': '--filter',
 });
 
-if (!args['--browser']) {
-    throw new Error('missing required argument: --browser');
-}
-const launchOptions = {
-    executablePath: args['--browser'],
-    args: ['--enable-features=SubresourceWebBundles']
-};
-if (args['--http2']) {
-    launchOptions.ignoreHTTPSErrors = true;
+function launchBrowser() {
+    if (!args['--browser']) {
+        return null;
+    }
+    const launchOptions = {
+        executablePath: args['--browser'],
+        args: ['--enable-features=SubresourceWebBundles']
+    };
+    if (args['--http2']) {
+        launchOptions.ignoreHTTPSErrors = true;
+    }
+    return puppeteer.launch(launchOptions);
 }
 
 function createServer(handler) {
@@ -55,7 +59,7 @@ async function run(name, browser, url) {
 }
 
 async function main() {
-    const browser = await puppeteer.launch(launchOptions);
+    const browser = await launchBrowser();
     const server = createServer((request, response) => {
         return handler(request, response, {
             public: '.',
@@ -73,17 +77,28 @@ async function main() {
     const port = args['--port'] || 8000;
     server.listen(port);
 
-    for (let name of ['prefetch-0', 'webbundle', 'bundled']) {
-        if (args['--filter'] && args['--filter'] !== name)
-            continue;
-        for (let depth = 2; depth <= 4; depth++) {
-            if (args['--depth'] && args['--depth'] !== depth)
+    if (browser) {
+        for (let name of ['prefetch-0', 'webbundle', 'bundled']) {
+            if (args['--filter'] && args['--filter'] !== name)
                 continue;
-            await run(`${name} depth=${depth}`, browser, `${scheme}://localhost:${port}/out_${depth}/${name}.html`);
+            for (let depth = 2; depth <= 4; depth++) {
+                if (args['--depth'] && args['--depth'] !== depth)
+                    continue;
+                await run(`${name} depth=${depth}`, browser, `${scheme}://localhost:${port}/out_${depth}/${name}.html`);
+            }
         }
+        browser.close();
+    } else {
+        console.log(`Benchmark server listening on ${scheme}://localhost:${port}/`);
+        console.log('Hit enter key to stop.');
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+        await new Promise((resolve) => rl.on('line', resolve));
+        rl.close();
     }
 
-    browser.close();
     server.close();
 }
 
