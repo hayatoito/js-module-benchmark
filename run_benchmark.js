@@ -53,9 +53,8 @@ async function run(name, browser, url) {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle0' });
     const ele = await page.$("#log");
-    const text = await page.evaluate(elm => elm.textContent, ele);
-    const m = text.match(/loadModules duration: ([0-9.]+ms)/);
-    console.log(name + ': ' + m[1]);
+    const results = JSON.parse(await page.evaluate(elm => elm.textContent, ele));
+    console.log(name + ': ' + (results.importEnd - results.navigationResponseStart));
 }
 
 async function main() {
