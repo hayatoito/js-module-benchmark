@@ -77,7 +77,7 @@ async function main() {
     server.listen(port);
 
     if (browser) {
-        for (let name of ['prefetch-0', 'webbundle', 'bundled']) {
+        for (let name of ['unbundled', 'modulepreload', 'webbundle', 'rollup']) {
             if (args['--filter'] && args['--filter'] !== name)
                 continue;
             for (let depth = 2; depth <= 4; depth++) {

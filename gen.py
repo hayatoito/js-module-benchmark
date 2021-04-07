@@ -332,12 +332,12 @@ class Benchmark(object):
   @step("Exporting html")
   def export_html(self, out_path):
     benchmarks = []
-    for count in (0, 10, 50, 100, 250, 500, len(self.modules)):
-      benchmarks.append(
-          self.export_benchmark(out_path, 'prefetch', prefetch_count=count))
-    for count in (0, 10, 50, 100, 250, 500, len(self.modules)):
-      benchmarks.append(
-          self.export_benchmark(out_path, 'preload', preload_count=count))
+    benchmarks.append(
+        self.export_benchmark(out_path, f'unbundled.html'))
+    benchmarks.append(
+        self.export_benchmark(out_path, f'modulepreload.html', prefetch_count=len(self.modules)))
+    benchmarks.append(
+        self.export_benchmark(out_path, f'script-preload.html', preload_count=len(self.modules)))
     if not self.options.dynamic_imports:
       benchmarks.append(self.export_bundled(out_path))
       benchmarks.append(self.export_bundled_wbn(out_path))
@@ -345,7 +345,7 @@ class Benchmark(object):
 
   @step("Exporting bundled")
   def export_bundled(self, out_path):
-    path = out_path / 'bundled.html'
+    path = out_path / 'rollup.html'
     with open(path, 'w') as f:
       f.write(self.benchmark_template().substitute(
           dict(headers="",
@@ -369,11 +369,10 @@ class Benchmark(object):
 
   def export_benchmark(self,
                        out_path,
-                       name,
+                       file_name,
                        prefetch_count=0,
                        preload_count=0,
                        wait=0):
-    file_name = f'{name}-{prefetch_count+preload_count}.html'
     print(f"  {file_name}")
     path = out_path / file_name
     with open(path, 'w') as f:
