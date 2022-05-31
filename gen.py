@@ -71,10 +71,6 @@ class Options(object):
                            default=False,
                            action="store_true",
                            help="Use dynamic imports everywhere.")
-    self.parser.add_option("--wbn-base-url",
-                           default="http://localhost:8000/",
-                           help="Specify the serving URL of the benchmark. "
-                           "Used as the base URL of the WebBundle output.")
 
   def parse_options(self):
     (self.options, args) = self.parser.parse_args()
@@ -317,17 +313,19 @@ class Benchmark(object):
 
   @step("Building bundles")
   def build_bundles(self, out_path):
+    wbn_path = out_path / 'bundled.wbn'
+    subprocess.check_call(
+      # Use `gen-bundle` since a npm's `wbn` (0.0.6) doesn't support a relative url yet.
+      f"gen-bundle --dir='{out_path}' --o='{wbn_path}'",
+      # Suppresss stderr because gen-bundle` prints each filename to stderr.
+      stderr=subprocess.DEVNULL,
+      shell=True)
+
     module_path = out_path / "A.mjs"
     bundle_path = out_path / 'bundled.mjs'
     subprocess.check_call(
         f"npx rollup '{ module_path}' --format=esm --file='{bundle_path}' --name=A",
         shell=True)
-    base_url = self.options.wbn_base_url
-    wbn_path = out_path / 'bundled.wbn'
-    subprocess.check_call(
-        f"npx wbn --dir='{out_path}' --baseURL={base_url}{out_path}/ --primaryURL={base_url}{module_path} --output='{wbn_path}'",
-        shell=True)
-
 
   @step("Exporting html")
   def export_html(self, out_path):
@@ -357,11 +355,9 @@ class Benchmark(object):
   @step("Exporting bundled with webbundle")
   def export_bundled_wbn(self, out_path):
     path = out_path / 'webbundle.html'
-    scope = self.options.wbn_base_url + str(out_path)
     with open(path, 'w') as f:
-      # Define both scopes and scope attributes so that old PoC builds can understand
       f.write(self.benchmark_template().substitute(
-          dict(headers=f'  <link rel="webbundle" href="bundled.wbn" scopes="{scope}" scope="{scope}">',
+          dict(headers='  <script type="webbundle"> { "source": "bundled.wbn", "scopes": ["./"] } </script>',
                info=self.output_info(),
                scripts="",
                module='./A.mjs')))
